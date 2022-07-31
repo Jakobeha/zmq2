@@ -8,3 +8,4 @@
 /target/
 Cargo.lock
 /msrv-test/target/
+.DS_Store
