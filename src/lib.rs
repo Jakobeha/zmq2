@@ -44,7 +44,7 @@ pub type Result<T> = result::Result<T, Error>;
 
 /// Socket types
 #[allow(non_camel_case_types)]
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SocketType {
     PAIR,
     PUB,
