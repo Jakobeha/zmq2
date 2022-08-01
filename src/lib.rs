@@ -31,10 +31,12 @@ macro_rules! zmq_try {
 }
 
 mod message;
+mod sendable_recvable;
 mod sockopt;
 
 use crate::message::msg_ptr;
 pub use crate::message::Message;
+pub use crate::sendable_recvable::{Sendable, SendableRecvable, Recvable};
 pub use crate::SocketType::*;
 
 /// `zmq`-specific Result type.
@@ -320,7 +322,7 @@ impl std::error::Error for Error {
     }
 }
 
-impl std::fmt::Display for Error {
+impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.message())
     }
@@ -577,30 +579,6 @@ macro_rules! sockopts {
     };
 }
 
-/// Sendable over a `Socket`.
-///
-/// A type can implement this trait there is an especially efficient
-/// implementation for sending it as a message over a zmq socket.
-///
-/// If the type needs to be directly passed to `Socket::send()`, but
-/// the overhead of allocating a `Message` instance is not an issue,
-/// `Into<Message>` should be implemented instead.
-///
-pub trait Sendable {
-    fn send(self, socket: &Socket, flags: i32) -> Result<()>;
-}
-
-impl<T> Sendable for T
-where
-    T: Into<Message>,
-{
-    fn send(self, socket: &Socket, flags: i32) -> Result<()> {
-        let mut msg = self.into();
-        zmq_try!(unsafe { zmq_sys2::zmq_msg_send(msg_ptr(&mut msg), socket.sock, flags as c_int) });
-        Ok(())
-    }
-}
-
 impl Socket {
     /// Consume the Socket and return the raw socket pointer.
     ///
@@ -755,6 +733,13 @@ impl Socket {
     pub fn recv_string(&self, flags: i32) -> Result<result::Result<String, Vec<u8>>> {
         self.recv_bytes(flags)
             .map(|bytes| String::from_utf8(bytes).map_err(FromUtf8Error::into_bytes))
+    }
+
+    /// Receive a message into an arbitrary type. This method is unsafe because you must ensure
+    /// that the data being received is well-formed according to the type you are constructing
+    /// from it.
+    pub unsafe fn recv_t<T: Recvable>(&self, flags: i32) -> Result<T> {
+        T::recv(self, flags)
     }
 
     /// Receive a multipart message from the socket.
